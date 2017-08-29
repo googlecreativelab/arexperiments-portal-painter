@@ -31,4 +31,4 @@ After [setting up and getting ARCore](https://developers.google.com/ar/develop/u
 
 ## Acknowledgements:
 
-Built by [Jane Friedhoff](http://www.janefriedhoff.com) with friends on the Creative Lab team at Google. Sample model created by [Alex Jacobo-Blonder](http://ajacoboblonder.com/). Check out more at [AR Experiments]() or read more about [ARCore](https://developers.google.com/ar).  
+Built by [Jane Friedhoff](http://www.janefriedhoff.com) with friends on the Creative Lab team at Google. Sample model created by [Alex Jacobo-Blonder](http://ajacoboblonder.com/). Check out more at [AR Experiments](https://experiments.withgoogle.com/ar/) or read more about [ARCore](https://developers.google.com/ar).  
