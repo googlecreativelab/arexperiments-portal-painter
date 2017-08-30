@@ -24,6 +24,8 @@ After [setting up and getting ARCore](https://developers.google.com/ar/develop/u
 
 * **Build and run.** Point your camera at your environment and wait until you see faint particles rise up from it. You can then use your finger to draw.
 
+More granular instructions [here](https://github.com/googlecreativelab/arexperiments-portal-painter/issues/1#issuecomment-326012124).
+
 ## Debug commands:
 
 * 2-finger tap to start painting with the next world (won’t change old portals)
