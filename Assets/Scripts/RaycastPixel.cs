@@ -52,12 +52,12 @@ public class RaycastPixel : MonoBehaviour
 
 		_QuitOnConnectionErrors();
 
-        if (Frame.TrackingState != FrameTrackingState.Tracking)
+        if (Session.Status != SessionStatus.Tracking)
         {
             return;
         }
 
-		Frame.GetNewPlanes(ref m_newPlanes);
+		Session.GetTrackables<TrackedPlane>(m_newPlanes, TrackableQueryFilter.New);
 
 		int layerMask = 1 << 8;
 		layerMask = ~layerMask;
@@ -71,12 +71,12 @@ public class RaycastPixel : MonoBehaviour
 			} else {
 			// If not, then we just make a new one
 				if (canPlacePortal) {
-					TrackableHitFlag raycastFilter = TrackableHitFlag.PlaneWithinBounds |
-                        TrackableHitFlag.PlaneWithinPolygon |
-                        TrackableHitFlag.PointCloud;
+					TrackableHitFlags raycastFilter = TrackableHitFlags.PlaneWithinBounds |
+                        TrackableHitFlags.PlaneWithinPolygon |
+                        TrackableHitFlags.FeaturePoint;
                     TrackableHit hit;
-
-					if (Session.Raycast(cam.ScreenPointToRay(Input.GetTouch (0).position), raycastFilter, out hit)) {
+					Vector2 touchPoint = Input.GetTouch(0).position;
+					if (Frame.Raycast(touchPoint.x, touchPoint.y, raycastFilter, out hit)) {
 						PlacePortal (hit);
 						canPlacePortal = false;
 					}
@@ -108,13 +108,12 @@ public class RaycastPixel : MonoBehaviour
 	}
 
 	void PlacePortal(TrackableHit h) {
-		var anchor = Session.CreateAnchor(h.Point, Quaternion.identity);
-        var placedObject = Instantiate(portal, h.Point, Quaternion.identity, anchor.transform);
+		var anchor = Session.CreateAnchor(h.Pose, h.Trackable);
+        var placedObject = Instantiate(portal, h.Pose.position, Quaternion.identity, anchor.transform);
 
         // Did we intersect with a plane? If so, let's use its normal
-        if (h.Plane != null) {
-        	placedObject.GetComponent<PlaneAttachment>().Attach(h.Plane);
-        	placedObject.transform.rotation = Quaternion.FromToRotation(Vector3.forward, h.Normal);
+        if (h.Flags == TrackableHitFlags.PlaneWithinBounds || h.Flags == TrackableHitFlags.PlaneWithinPolygon) {
+        	placedObject.transform.rotation = h.Pose.rotation;
     	} else {
     	// If we don't have a real normal, we'll just point it to face the camera
     		placedObject.transform.LookAt(cam.transform);
@@ -159,21 +158,7 @@ public class RaycastPixel : MonoBehaviour
 
 	private void _QuitOnConnectionErrors() {
         // Do not update if ARCore is not tracking.
-        if (Session.ConnectionState == SessionConnectionState.DeviceNotSupported)
-        {
-            _ShowAndroidToastMessage("This device does not support ARCore.");
-            Application.Quit();
-        }
-        else if (Session.ConnectionState == SessionConnectionState.UserRejectedNeededPermission)
-        {
-            _ShowAndroidToastMessage("Camera permission is needed to run this application.");
-            Application.Quit();
-        }
-        else if (Session.ConnectionState == SessionConnectionState.ConnectToServiceFailed)
-        {
-            _ShowAndroidToastMessage("ARCore encountered a problem connecting.  Please start the app again.");
-            Application.Quit();
-        }
+       Session.CheckApkAvailability();
     }
 
     private static void _ShowAndroidToastMessage(string message) {
