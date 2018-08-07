@@ -18,8 +18,13 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.Rendering;
 using GoogleARCore;
+using GoogleARCore.Examples.Common;
 using UnityEngine;
-using GoogleARCore.HelloAR;
+
+#if UNITY_EDITOR
+    // Set up touch input propagation while using Instant Preview in the editor.
+    using Input = GoogleARCore.InstantPreviewInput;
+#endif
 
 public class RaycastPixel : MonoBehaviour
 {
@@ -34,7 +39,9 @@ public class RaycastPixel : MonoBehaviour
 
 	private WorldTracker worldTracker;
 
-	private List<TrackedPlane> m_newPlanes = new List<TrackedPlane>();
+	private bool m_IsQuitting = false;
+
+	private List<DetectedPlane> m_newPlanes = new List<DetectedPlane>();
 
 	void Start()
 	{
@@ -50,14 +57,14 @@ public class RaycastPixel : MonoBehaviour
 
 	void Update() {
 
-		_QuitOnConnectionErrors();
+		_UpdateApplicationLifecycle();
 
         if (Session.Status != SessionStatus.Tracking)
         {
             return;
         }
 
-		Session.GetTrackables<TrackedPlane>(m_newPlanes, TrackableQueryFilter.New);
+		Session.GetTrackables<DetectedPlane>(m_newPlanes, TrackableQueryFilter.New);
 
 		int layerMask = 1 << 8;
 		layerMask = ~layerMask;
@@ -71,9 +78,8 @@ public class RaycastPixel : MonoBehaviour
 			} else {
 			// If not, then we just make a new one
 				if (canPlacePortal) {
-					TrackableHitFlags raycastFilter = TrackableHitFlags.PlaneWithinBounds |
-                        TrackableHitFlags.PlaneWithinPolygon |
-                        TrackableHitFlags.FeaturePoint;
+					TrackableHitFlags raycastFilter = TrackableHitFlags.PlaneWithinPolygon |
+                TrackableHitFlags.FeaturePointWithSurfaceNormal;
                     TrackableHit hit;
 					Vector2 touchPoint = Input.GetTouch(0).position;
 					if (Frame.Raycast(touchPoint.x, touchPoint.y, raycastFilter, out hit)) {
@@ -108,18 +114,11 @@ public class RaycastPixel : MonoBehaviour
 	}
 
 	void PlacePortal(TrackableHit h) {
-		var anchor = Session.CreateAnchor(h.Pose, h.Trackable);
-        var placedObject = Instantiate(portal, h.Pose.position, Quaternion.identity, anchor.transform);
-
-        // Did we intersect with a plane? If so, let's use its normal
-        if (h.Flags == TrackableHitFlags.PlaneWithinBounds || h.Flags == TrackableHitFlags.PlaneWithinPolygon) {
-        	placedObject.transform.rotation = h.Pose.rotation;
-    	} else {
-    	// If we don't have a real normal, we'll just point it to face the camera
-    		placedObject.transform.LookAt(cam.transform);
-    	}
-
-    	placedObject.transform.Rotate(0, 180, 0);
+    	var anchor = h.Trackable.CreateAnchor(h.Pose);
+        var placedObject = Instantiate(portal, h.Pose.position, h.Pose.rotation);
+    	
+    	placedObject.transform.Rotate(90, 0, 0, Space.Self);
+    	placedObject.transform.parent = anchor.transform;
 	}
 
 	void UpdatePixels(RaycastHit hit) {
@@ -156,9 +155,46 @@ public class RaycastPixel : MonoBehaviour
 		tex.Apply ();
 	}
 
-	private void _QuitOnConnectionErrors() {
-        // Do not update if ARCore is not tracking.
-       Session.CheckApkAvailability();
+	private void _UpdateApplicationLifecycle() {
+        // Exit the app when the 'back' button is pressed.
+        if (Input.GetKey(KeyCode.Escape))
+        {
+            Application.Quit();
+        }
+
+        // Only allow the screen to sleep when not tracking.
+        if (Session.Status != SessionStatus.Tracking)
+        {
+            const int lostTrackingSleepTimeout = 15;
+            Screen.sleepTimeout = lostTrackingSleepTimeout;
+        }
+        else
+        {
+            Screen.sleepTimeout = SleepTimeout.NeverSleep;
+        }
+
+        if (m_IsQuitting)
+        {
+            return;
+        }
+
+        // Quit if ARCore was unable to connect and give Unity some time for the toast to appear.
+        if (Session.Status == SessionStatus.ErrorPermissionNotGranted)
+        {
+            _ShowAndroidToastMessage("Camera permission is needed to run this application.");
+            m_IsQuitting = true;
+            Invoke("_DoQuit", 0.5f);
+        }
+        else if (Session.Status.IsError())
+        {
+            _ShowAndroidToastMessage("ARCore encountered a problem connecting.  Please start the app again.");
+            m_IsQuitting = true;
+            Invoke("_DoQuit", 0.5f);
+        }
+    }
+
+    private void _DoQuit() {
+        Application.Quit();
     }
 
     private static void _ShowAndroidToastMessage(string message) {
